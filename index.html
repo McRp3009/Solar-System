@@ -1,0 +1,218 @@
+<html>
+
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=windows-1252">
+    <script src="./twgl.js-master/dist/5.x/twgl-full.js" name="twgl"></script>
+    <script src="scripts_CG28.js" type="module"></script>
+    <link rel="stylesheet" href="style_CG28.css">
+</head>
+
+<body>
+    <doctype html="">
+        <canvas id="canvas" width: 100vw; height: 100vh display: block;></canvas>
+        <div id="shadow" style="position: absolute; height: 30px; width:200px ;top: 10px; left: 10px; color: white; font-size: 15px; background-color: grey; text-align: center; line-height: 25px;">
+            Lighting mode: No lighting
+        </div>
+        <script id="vs" type="x-shader/x-vertex">
+            attribute vec4 position;
+            attribute vec2 texcoord;
+        
+            uniform mat4 u_worldViewProjection;
+        
+            varying vec3 v_normal;
+            varying vec2 v_texcoord;
+            void main() {
+                gl_Position = u_worldViewProjection * position;
+                v_texcoord = texcoord;
+            }
+        </script>
+        
+        <script id="fs" type="x-shader/x-fragment">
+            precision mediump float;
+        
+            varying vec2 v_texcoord;
+        
+            uniform sampler2D u_texture;
+        
+            void main() {
+                //vec2 flipped_texcoord = vec2(v_texcoord.x, 1.0 - v_texcoord.y);
+                gl_FragColor = texture2D(u_texture, v_texcoord);
+            }
+        </script>
+        <script id="vs-orbit" type="notjs">
+            attribute vec4 position;
+        
+            uniform mat4 u_worldViewProjection;
+                
+            void main() {
+                gl_Position = u_worldViewProjection * position;
+            }
+        </script>
+        <script id="fs-orbit" type="notjs">
+            precision mediump float;
+
+            uniform vec3 u_color;
+            uniform float u_alpha;
+            
+            void main()
+            {
+                gl_FragColor = vec4(u_color, u_alpha);
+            }
+        </script>
+
+        <!-- phong shading -->
+
+        <script id="vs-phong" type="notjs">
+            uniform mat4 u_worldViewProjection;
+            uniform vec3 u_lightWorldPos;
+            uniform mat4 u_world;
+            uniform mat4 u_viewInverse;
+            uniform mat4 u_worldInverseTranspose;
+            
+            attribute vec4 position;
+            attribute vec3 normal;
+            attribute vec2 texcoord;
+            
+            varying vec4 v_position;
+            varying vec2 v_texCoord;
+            varying vec3 v_normal;
+            varying vec3 v_surfaceToLight;
+            varying vec3 v_surfaceToView;
+            
+            void main() {
+              v_texCoord = texcoord;
+              v_position = u_worldViewProjection * position;
+              v_normal = (u_worldInverseTranspose * vec4(normal, 0)).xyz;
+              
+              v_surfaceToLight =  u_lightWorldPos - (u_world * position).xyz; ;
+              v_surfaceToView = (u_viewInverse[3] - (u_world * position)).xyz;
+              
+              gl_Position = v_position;
+            }
+        </script>
+        <script id="fs-phong" type="notjs">
+            precision mediump float;
+            
+            varying vec4 v_position;
+            varying vec2 v_texCoord;
+            varying vec3 v_normal;
+            varying vec3 v_surfaceToLight;
+            varying vec3 v_surfaceToView;
+            
+            uniform vec4 u_lightColor;
+            uniform vec4 u_ambient;
+            uniform sampler2D u_texture;
+            uniform vec4 u_specular;
+            uniform float u_shininess;
+            uniform float u_specularFactor;
+            
+            vec4 lit(float l ,float h, float m) {
+              return vec4(1.0,
+                          max(l, 0.0),
+                          (l > 0.0) ? pow(max(0.0, h), m) : 0.0,
+                          1.0);
+            }
+            
+            void main() {
+              vec4 diffuseColor = texture2D(u_texture, v_texCoord);
+              vec3 a_normal = normalize(v_normal);
+              vec3 surfaceToLight = normalize(v_surfaceToLight);
+              vec3 surfaceToView = normalize(v_surfaceToView);
+              
+              vec3 halfVector = normalize((v_surfaceToLight + v_surfaceToView));
+              
+              vec4 litR = lit(dot(a_normal, surfaceToLight),
+                                dot(a_normal, halfVector), u_shininess);
+
+              
+              vec4 outColor = vec4((
+                u_lightColor * (diffuseColor * litR.y + diffuseColor * u_ambient +
+                                u_specular * litR.z * u_specularFactor)).rgb,
+                                diffuseColor.a);
+              
+                  gl_FragColor = outColor;
+            }
+
+        </script>
+
+         <!-- gouraud -->
+
+         <script id="vs-gouraud" type="notjs">
+            uniform mat4 u_worldViewProjection;
+            uniform vec3 u_lightWorldPos;
+            uniform mat4 u_world;
+            uniform mat4 u_viewInverse;
+            uniform mat4 u_worldInverseTranspose;
+
+            uniform vec4 u_lightColor;
+            uniform vec4 u_ambient;
+            uniform sampler2D u_texture;
+            uniform vec4 u_specular;
+            uniform float u_shininess;
+            uniform float u_specularFactor;
+            
+            attribute vec4 position;
+            attribute vec3 normal;
+            attribute vec2 texcoord;
+            
+            varying vec4 v_position;
+            varying vec2 v_texCoord;
+            varying vec3 v_normal;
+            varying vec3 v_surfaceToLight;
+            varying vec3 v_surfaceToView;
+
+            varying vec4 v_color;
+
+            vec4 lit(float l ,float h, float m) {
+                return vec4(1.0,
+                            max(l, 0.0),
+                            (l > 0.0) ? pow(max(0.0, h), m) : 0.0,
+                            1.0);
+            }
+            
+            void main() {
+
+                v_position = u_worldViewProjection * position;
+                v_texCoord = texcoord;
+                v_normal = (u_worldInverseTranspose * vec4(normal, 0)).xyz;
+                v_surfaceToLight =  u_lightWorldPos - (u_world * position).xyz;
+                v_surfaceToView = (u_viewInverse[3] - (u_world * position)).xyz;
+
+                gl_Position = v_position;
+
+                vec4 diffuseColor = texture2D(u_texture, v_texCoord);
+                vec3 a_normal = normalize(v_normal);
+                vec3 surfaceToLight = normalize(v_surfaceToLight);
+                vec3 surfaceToView = normalize(v_surfaceToView);
+
+                vec3 halfVector = normalize((v_surfaceToLight + v_surfaceToView));
+
+                vec4 litR = lit(dot(a_normal, surfaceToLight),
+                                dot(a_normal, halfVector), u_shininess);
+
+                vec4 outColor = vec4((
+                    u_lightColor * (diffuseColor * litR.y + diffuseColor * u_ambient +
+                                u_specular * litR.z * u_specularFactor)).rgb,
+                        diffuseColor.a);
+
+                v_color = outColor;               
+
+            }
+        </script>
+
+        <script id="fs-gouraud" type="notjs">
+            precision mediump float;
+
+            varying vec4 v_color;
+            
+            void main()
+            {
+                gl_FragColor = v_color;
+            }
+
+        </script>
+
+    </doctype>
+</body>
+
+</html>
